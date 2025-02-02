@@ -12,6 +12,24 @@ class PromptAssistant(QMainWindow):
         super().__init__()
         self.setWindowTitle("Pomocnik do tworzenia promptów")
 
+        # Definicja domyślnego template
+        self.template_text = """<Cel>
+
+</Cel>
+
+<Format_odpowiedzi>
+
+<Format_odpowiedzi>
+
+<Ostrzeżenia>
+
+</Ostrzeżenia>
+
+<Kontekst>
+
+</Kontekst>
+"""
+
         # Lista załączonych plików: przechowuje krotki (nazwa_pliku, zawartość)
         self.attached_files = []
 
@@ -27,6 +45,8 @@ class PromptAssistant(QMainWindow):
         # Duże pole tekstowe
         self.text_edit = QTextEdit()
         layout.addWidget(self.text_edit)
+        # Załaduj domyślny template przy uruchomieniu aplikacji
+        self.load_template()
 
         # Lista plików
         self.files_list = QListWidget()
@@ -50,6 +70,12 @@ class PromptAssistant(QMainWindow):
         self.clear_button = QPushButton("Clear")
         self.clear_button.clicked.connect(self.clear_all)
         button_layout.addWidget(self.clear_button)
+
+    def load_template(self):
+        """
+        Ustawia domyślny template w głównym polu tekstowym.
+        """
+        self.text_edit.setPlainText(self.template_text)
 
     def attach_files(self):
         """
@@ -98,11 +124,16 @@ class PromptAssistant(QMainWindow):
 
     def clear_all(self):
         """
-        Czyści pole tekstowe i listę załączonych plików, aby zacząć od nowa.
+        Czyści pole tekstowe oraz pamięć załączonych plików.
+        Dzięki temu przycisk "Clear" usuwa nie tylko tekst z pola,
+        ale również załączone pliki, umożliwiając ich ponowne dodanie.
+        Po wyczyszczeniu, w pole tekstowe zostaje załadowany domyślny template.
         """
         self.text_edit.clear()
         self.files_list.clear()
         self.attached_files.clear()
+        # Załaduj ponownie domyślny template
+        self.load_template()
 
 
 def main():
