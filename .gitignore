@@ -4,4 +4,3 @@ test*
 promptglue.command
 spec/
 .claude/
-**/.claude/settings.local.json
