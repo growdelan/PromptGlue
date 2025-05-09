@@ -2,6 +2,7 @@ import sys
 import os
 import re
 import pathspec
+import tiktoken
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -16,12 +17,22 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QMessageBox,
     QCheckBox,
+    QStatusBar,
 )
-from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QGuiApplication, QColor
 from PyQt5.QtCore import Qt
 
 # --- Stałe konfiguracyjne ----------------------------------------------------
 MAX_DIR_SIZE = 1_000_000_000  # 1 GB
+WARNING_TOKEN_LIMIT = 100_000  # Żółte ostrzeżenie
+CRITICAL_TOKEN_LIMIT = 120_000  # Czerwone ostrzeżenie
+MAX_TOKEN_LIMIT = 128_000  # GPT-4o limit
+
+
+def count_tokens(text: str) -> int:
+    """Liczy liczbę tokenów w tekście używając tokenizera GPT-4o."""
+    encoder = tiktoken.get_encoding("cl100k_base")  # Tokenizer GPT-4o
+    return len(encoder.encode(text))
 
 
 class PromptAssistant(QMainWindow):
@@ -35,10 +46,23 @@ class PromptAssistant(QMainWindow):
         self.attached_files = []  # list[tuple[nazwa, zawartość]]
         self.attached_dirs = []  # list[tuple[dir, list[tuple[rel_path, content]]]]
 
+        # --- Liczniki tokenów -----------------------------------------------
+        self.prompt_tokens = 0
+        self.attachments_tokens = 0
+        self.total_tokens = 0
+
         # --- UI --------------------------------------------------------------
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
+
+        # Dodanie paska statusu
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
+
+        # Etykieta z licznikiem tokenów
+        self.token_label = QLabel("Tokeny: prompt: 0 | pliki: 0 | suma: 0")
+        self.statusBar.addPermanentWidget(self.token_label)
 
         layout.addWidget(
             QLabel(
@@ -79,6 +103,42 @@ class PromptAssistant(QMainWindow):
         button_layout.addWidget(self.clear_button)
 
         self.ignore_gitignored = True  # domyślnie aktywne
+
+        # Połącz sygnał textChanged z QTextEdit do aktualizacji licznika tokenów
+        self.text_edit.textChanged.connect(self.update_token_count)
+
+    def update_token_count(self):
+        """Aktualizuje licznik tokenów dla promptu i załączników."""
+        # Liczenie tokenów w promptcie
+        prompt_text = self.text_edit.toPlainText()
+        self.prompt_tokens = count_tokens(prompt_text) if prompt_text else 0
+
+        # Liczenie tokenów w załącznikach
+        self.attachments_tokens = 0
+
+        # Załączone pliki
+        for _, content in self.attached_files:
+            self.attachments_tokens += count_tokens(content)
+
+        # Załączone katalogi
+        for _, files in self.attached_dirs:
+            for _, content in files:
+                self.attachments_tokens += count_tokens(content)
+
+        # Suma tokenów
+        self.total_tokens = self.prompt_tokens + self.attachments_tokens
+
+        # Aktualizacja etykiety
+        token_text = f"Tokeny: prompt: {self.prompt_tokens} | pliki: {self.attachments_tokens} | suma: {self.total_tokens}"
+        self.token_label.setText(token_text)
+
+        # Ustawienie kolorów ostrzeżeń
+        if self.total_tokens > CRITICAL_TOKEN_LIMIT:
+            self.token_label.setStyleSheet("color: red; font-weight: bold")
+        elif self.total_tokens > WARNING_TOKEN_LIMIT:
+            self.token_label.setStyleSheet("color: orange; font-weight: bold")
+        else:
+            self.token_label.setStyleSheet("")
 
     @staticmethod
     def sanitize_tag(name: str) -> str:
@@ -143,6 +203,9 @@ class PromptAssistant(QMainWindow):
                     self.files_list.addItem(QListWidgetItem(filename))
                 except Exception:
                     pass
+
+        # Aktualizacja licznika tokenów po dodaniu plików
+        self.update_token_count()
 
     def attach_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
@@ -222,6 +285,9 @@ class PromptAssistant(QMainWindow):
         if msgs:
             QMessageBox.information(self, "Pominięto pliki", "Pominięto " + ", ".join(msgs) + ".")
 
+        # Aktualizacja licznika tokenów po dodaniu katalogu
+        self.update_token_count()
+
     def copy_text(self):
         user_text = self.text_edit.toPlainText()
         xml_parts = []
@@ -256,6 +322,13 @@ class PromptAssistant(QMainWindow):
         self.attached_files.clear()
         self.attached_dirs.clear()
         self.load_template()
+
+        # Aktualizacja licznika tokenów po wyczyszczeniu
+        self.prompt_tokens = 0
+        self.attachments_tokens = 0
+        self.total_tokens = 0
+        self.token_label.setText("Tokeny: prompt: 0 | pliki: 0 | suma: 0")
+        self.token_label.setStyleSheet("")
 
 
 def main():

@@ -2,3 +2,5 @@
 .venv
 test*
 promptglue.command
+spec/
+**/.claude/settings.local.json
