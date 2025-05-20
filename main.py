@@ -289,29 +289,25 @@ class PromptAssistant(QMainWindow):
         self.update_token_count()
 
     def copy_text(self):
+        """Kopiuje prompt + załączniki w nowym, spłaszczonym formacie <file=[…]> … </file=[…]>."""
         user_text = self.text_edit.toPlainText()
         xml_parts = []
 
-        if self.attached_files:
-            xml_parts.append("<pliki>")
-            for filename, content in self.attached_files:
-                tag = self.sanitize_tag(filename)
-                xml_parts.append(f"\t<{tag}>")
-                for line in content.splitlines():
-                    xml_parts.append(f"\t\t{line}")
-                xml_parts.append(f"\t</{tag}>")
-            xml_parts.append("</pliki>")
+        # --- pojedyncze pliki ------------------------------------------------
+        for filename, content in self.attached_files:
+            path = filename.replace(os.sep, "/")          # nazwa pliku
+            xml_parts.append(f"<file={path}>")
+            xml_parts.extend(content.splitlines())
+            xml_parts.append(f"</file={path}>")
 
+        # --- pliki z katalogów ---------------------------------------------
         for dirname, files in self.attached_dirs:
-            dir_tag = self.sanitize_tag(dirname)
-            xml_parts.append(f"<{dir_tag}>")
             for rel_path, content in files:
-                file_tag = self.sanitize_tag(rel_path)
-                xml_parts.append(f"\t<{file_tag}>")
-                for line in content.splitlines():
-                    xml_parts.append(f"\t\t{line}")
-                xml_parts.append(f"\t</{file_tag}>")
-            xml_parts.append(f"</{dir_tag}>")
+                # ścieżka względna katalog/nazwa_pliku
+                path = f"{dirname}/{rel_path}".replace(os.sep, "/")
+                xml_parts.append(f"<file={path}>")
+                xml_parts.extend(content.splitlines())
+                xml_parts.append(f"</file={path}>")
 
         final_text = user_text + "\n" + "\n".join(xml_parts) + "\n"
         QGuiApplication.clipboard().setText(final_text)
