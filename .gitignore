@@ -4,3 +4,5 @@ test*
 promptglue.command
 spec/
 .claude/
+.codex/
+
