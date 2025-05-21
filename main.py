@@ -43,8 +43,9 @@ class PromptAssistant(QMainWindow):
         self.setWindowTitle("Pomocnik do tworzenia promptów")
 
         # --- Pamięć na załączniki -------------------------------------------
-        self.attached_files = []  # list[tuple[nazwa, zawartość]]
-        self.attached_dirs = []  # list[tuple[dir, list[tuple[rel_path, content]]]]
+        # każdy wpis to dict: {"name": str, "files": list[(rel_path, content)], "tree": str}
+        self.attached_dirs = []  # katalogi
+        self.attached_files = []  # pojedyncze pliki (nazwa, content)
 
         # --- Liczniki tokenów -----------------------------------------------
         self.prompt_tokens = 0
@@ -107,6 +108,40 @@ class PromptAssistant(QMainWindow):
         # Połącz sygnał textChanged z QTextEdit do aktualizacji licznika tokenów
         self.text_edit.textChanged.connect(self.update_token_count)
 
+    # ------------------------ Pomocnicze: generacja drzewa -------------------
+    @staticmethod
+    def _render_tree_structure(rel_paths):
+        """
+        Buduje reprezentację drzewa katalog–pliki w stylu narzędzia `tree`.
+        rel_paths – lista ścieżek względnych (z separatorem '/').
+        Zwraca pojedynczy string z liniami drzewa.
+        """
+        # 1. budujemy strukturę zagnieżdżonych dictów
+        root = {}
+        for p in rel_paths:
+            parts = p.split("/")
+            cur = root
+            for idx, part in enumerate(parts):
+                if idx == len(parts) - 1:
+                    cur[part] = None  # plik
+                else:
+                    cur = cur.setdefault(part, {})
+
+        lines = ["."]
+        def walk(subtree, prefix=""):
+            dirs = sorted([k for k, v in subtree.items() if isinstance(v, dict)])
+            files = sorted([k for k, v in subtree.items() if v is None])
+            for i, name in enumerate(dirs + files):
+                last = i == (len(dirs) + len(files) - 1)
+                connector = "└── " if last else "├── "
+                lines.append(f"{prefix}{connector}{name}")
+                if isinstance(subtree[name], dict):
+                    extension = "    " if last else "│   "
+                    walk(subtree[name], prefix + extension)
+        walk(root)
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------------
     def update_token_count(self):
         """Aktualizuje licznik tokenów dla promptu i załączników."""
         # Liczenie tokenów w promptcie
@@ -116,13 +151,12 @@ class PromptAssistant(QMainWindow):
         # Liczenie tokenów w załącznikach
         self.attachments_tokens = 0
 
-        # Załączone pliki
         for _, content in self.attached_files:
             self.attachments_tokens += count_tokens(content)
 
-        # Załączone katalogi
-        for _, files in self.attached_dirs:
-            for _, content in files:
+        for d in self.attached_dirs:
+            self.attachments_tokens += count_tokens(d["tree"])
+            for _, content in d["files"]:
                 self.attachments_tokens += count_tokens(content)
 
         # Suma tokenów
@@ -189,6 +223,7 @@ class PromptAssistant(QMainWindow):
     def toggle_ignore_gitignored(self, state: int):
         self.ignore_gitignored = state == Qt.Checked
 
+    # --------------------------- Załączanie plików ---------------------------
     def attach_files(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Wybierz pliki do załączenia", "", "Wszystkie pliki (*.*)"
@@ -204,9 +239,9 @@ class PromptAssistant(QMainWindow):
                 except Exception:
                     pass
 
-        # Aktualizacja licznika tokenów po dodaniu plików
         self.update_token_count()
 
+    # --------------------------- Załączanie katalogu -------------------------
     def attach_directory(self):
         dir_path = QFileDialog.getExistingDirectory(
             self, "Wybierz katalog do załączenia", ""
@@ -214,6 +249,7 @@ class PromptAssistant(QMainWindow):
         if not dir_path:
             return
 
+        # --- wielkość katalogu ------------------------------------------------
         total_size = 0
         for root, dirs, files in os.walk(dir_path):
             if ".git" in dirs:
@@ -232,9 +268,7 @@ class PromptAssistant(QMainWindow):
                 )
                 return
 
-        spec = None
-        if self.ignore_gitignored:
-            spec = self._build_gitignore_spec(dir_path)
+        spec = self._build_gitignore_spec(dir_path) if self.ignore_gitignored else None
 
         collected_files = []
         skipped_binary = 0
@@ -270,8 +304,14 @@ class PromptAssistant(QMainWindow):
             )
             return
 
+        # --- generujemy drzewo katalogu --------------------------------------
+        rel_paths = [rel for rel, _ in collected_files]
+        tree_str = self._render_tree_structure(rel_paths)
+
         dir_basename = os.path.basename(dir_path)
-        self.attached_dirs.append((dir_basename, collected_files))
+        self.attached_dirs.append(
+            {"name": dir_basename, "files": collected_files, "tree": tree_str}
+        )
 
         item = QListWidgetItem(f"[DIR] {dir_basename} ({len(collected_files)} plików)")
         item.setForeground(Qt.blue)
@@ -285,33 +325,38 @@ class PromptAssistant(QMainWindow):
         if msgs:
             QMessageBox.information(self, "Pominięto pliki", "Pominięto " + ", ".join(msgs) + ".")
 
-        # Aktualizacja licznika tokenów po dodaniu katalogu
         self.update_token_count()
 
+    # --------------------------- Kopiowanie tekstu ---------------------------
     def copy_text(self):
-        """Kopiuje prompt + załączniki w nowym, spłaszczonym formacie <file=[…]> … </file=[…]>."""
+        """Kopiuje prompt + załączniki w formacie
+        <directories> … </directories> + <file=…> … </file=…>."""
         user_text = self.text_edit.toPlainText()
         xml_parts = []
 
-        # --- pojedyncze pliki ------------------------------------------------
-        for filename, content in self.attached_files:
-            path = filename.replace(os.sep, "/")          # nazwa pliku
-            xml_parts.append(f"<file={path}>")
-            xml_parts.extend(content.splitlines())
-            xml_parts.append(f"</file={path}>")
+        # -- katalogi: najpierw drzewo, potem pliki ---------------------------
+        for d in self.attached_dirs:
+            xml_parts.append("<directories>")
+            xml_parts.extend(d["tree"].splitlines())
+            xml_parts.append("</directories>")
 
-        # --- pliki z katalogów ---------------------------------------------
-        for dirname, files in self.attached_dirs:
-            for rel_path, content in files:
-                # ścieżka względna katalog/nazwa_pliku
-                path = f"{dirname}/{rel_path}".replace(os.sep, "/")
+            for rel_path, content in d["files"]:
+                path = f"{d['name']}/{rel_path}".replace(os.sep, "/")
                 xml_parts.append(f"<file={path}>")
                 xml_parts.extend(content.splitlines())
                 xml_parts.append(f"</file={path}>")
 
+        # -- pojedyncze pliki -------------------------------------------------
+        for filename, content in self.attached_files:
+            path = filename.replace(os.sep, "/")
+            xml_parts.append(f"<file={path}>")
+            xml_parts.extend(content.splitlines())
+            xml_parts.append(f"</file={path}>")
+
         final_text = user_text + "\n" + "\n".join(xml_parts) + "\n"
         QGuiApplication.clipboard().setText(final_text)
 
+    # --------------------------- Czyszczenie ---------------------------------
     def clear_all(self):
         self.text_edit.clear()
         self.files_list.clear()
@@ -319,7 +364,6 @@ class PromptAssistant(QMainWindow):
         self.attached_dirs.clear()
         self.load_template()
 
-        # Aktualizacja licznika tokenów po wyczyszczeniu
         self.prompt_tokens = 0
         self.attachments_tokens = 0
         self.total_tokens = 0
