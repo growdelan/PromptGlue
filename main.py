@@ -18,57 +18,50 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QCheckBox,
     QStatusBar,
+    QLineEdit,
 )
-from PyQt5.QtGui import QGuiApplication, QColor
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
 
 # --- Stałe konfiguracyjne ----------------------------------------------------
 MAX_DIR_SIZE = 1_000_000_000  # 1 GB
-WARNING_TOKEN_LIMIT = 100_000  # Żółte ostrzeżenie
-CRITICAL_TOKEN_LIMIT = 120_000  # Czerwone ostrzeżenie
-MAX_TOKEN_LIMIT = 128_000  # GPT-4o limit
+WARNING_TOKEN_LIMIT = 100_000
+CRITICAL_TOKEN_LIMIT = 120_000
+MAX_TOKEN_LIMIT = 128_000
 
 
 def count_tokens(text: str) -> int:
-    """Liczy liczbę tokenów w tekście używając tokenizera GPT-4o."""
-    encoder = tiktoken.get_encoding("cl100k_base")  # Tokenizer GPT-4o
+    encoder = tiktoken.get_encoding("cl100k_base")
     return len(encoder.encode(text))
 
 
 class PromptAssistant(QMainWindow):
-    """Główne okno aplikacji."""
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pomocnik do tworzenia promptów")
 
-        # --- Pamięć na załączniki -------------------------------------------
-        # każdy wpis to dict: {"name": str, "files": list[(rel_path, content)], "tree": str}
-        self.attached_dirs = []  # katalogi
-        self.attached_files = []  # pojedyncze pliki (nazwa, content)
+        # --- Pamięć załączników --------------------------------------------
+        self.attached_dirs = []
+        self.attached_files = []
 
-        # --- Liczniki tokenów -----------------------------------------------
+        # --- Liczniki tokenów ----------------------------------------------
         self.prompt_tokens = 0
         self.attachments_tokens = 0
         self.total_tokens = 0
 
-        # --- UI --------------------------------------------------------------
+        # === UI ============================================================
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        # Dodanie paska statusu
+        # Pasek statusu i licznik tokenów
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
-
-        # Etykieta z licznikiem tokenów
         self.token_label = QLabel("Tokeny: prompt: 0 | pliki: 0 | suma: 0")
         self.statusBar.addPermanentWidget(self.token_label)
 
         layout.addWidget(
-            QLabel(
-                "Wpisz treść promptu i załącz pliki lub katalogi, które chcesz do niego dodać:"
-            )
+            QLabel("Wpisz treść promptu i załącz pliki lub katalogi, które chcesz do niego dodać:")
         )
 
         self.text_edit = QTextEdit()
@@ -79,6 +72,7 @@ class PromptAssistant(QMainWindow):
         self.files_list = QListWidget()
         layout.addWidget(self.files_list)
 
+        # --- Pasek przycisków ----------------------------------------------
         button_layout = QHBoxLayout()
         layout.addLayout(button_layout)
 
@@ -89,6 +83,12 @@ class PromptAssistant(QMainWindow):
         self.attach_dir_button = QPushButton("Załącz katalog")
         self.attach_dir_button.clicked.connect(self.attach_directory)
         button_layout.addWidget(self.attach_dir_button)
+
+        # --- NOWE POLE WŁASNYCH REGUŁ --------------------------------------
+        self.exclude_edit = QLineEdit()
+        self.exclude_edit.setPlaceholderText("Wykluczenia:*.md, README.txt, *.log")
+        self.exclude_edit.setToolTip("Glob/wildmatch – rozdziel przecinkami")
+        button_layout.addWidget(self.exclude_edit, stretch=1)
 
         self.gitignore_checkbox = QCheckBox("Filtr .gitignore")
         self.gitignore_checkbox.setChecked(True)
@@ -103,27 +103,20 @@ class PromptAssistant(QMainWindow):
         self.clear_button.clicked.connect(self.clear_all)
         button_layout.addWidget(self.clear_button)
 
-        self.ignore_gitignored = True  # domyślnie aktywne
+        self.ignore_gitignored = True
 
-        # Połącz sygnał textChanged z QTextEdit do aktualizacji licznika tokenów
         self.text_edit.textChanged.connect(self.update_token_count)
 
     # ------------------------ Pomocnicze: generacja drzewa -------------------
     @staticmethod
     def _render_tree_structure(rel_paths):
-        """
-        Buduje reprezentację drzewa katalog–pliki w stylu narzędzia `tree`.
-        rel_paths – lista ścieżek względnych (z separatorem '/').
-        Zwraca pojedynczy string z liniami drzewa.
-        """
-        # 1. budujemy strukturę zagnieżdżonych dictów
         root = {}
         for p in rel_paths:
             parts = p.split("/")
             cur = root
             for idx, part in enumerate(parts):
                 if idx == len(parts) - 1:
-                    cur[part] = None  # plik
+                    cur[part] = None
                 else:
                     cur = cur.setdefault(part, {})
 
@@ -143,30 +136,22 @@ class PromptAssistant(QMainWindow):
 
     # ------------------------------------------------------------------------
     def update_token_count(self):
-        """Aktualizuje licznik tokenów dla promptu i załączników."""
-        # Liczenie tokenów w promptcie
         prompt_text = self.text_edit.toPlainText()
         self.prompt_tokens = count_tokens(prompt_text) if prompt_text else 0
 
-        # Liczenie tokenów w załącznikach
         self.attachments_tokens = 0
-
         for _, content in self.attached_files:
             self.attachments_tokens += count_tokens(content)
-
         for d in self.attached_dirs:
             self.attachments_tokens += count_tokens(d["tree"])
             for _, content in d["files"]:
                 self.attachments_tokens += count_tokens(content)
 
-        # Suma tokenów
         self.total_tokens = self.prompt_tokens + self.attachments_tokens
+        self.token_label.setText(
+            f"Tokeny: prompt: {self.prompt_tokens} | pliki: {self.attachments_tokens} | suma: {self.total_tokens}"
+        )
 
-        # Aktualizacja etykiety
-        token_text = f"Tokeny: prompt: {self.prompt_tokens} | pliki: {self.attachments_tokens} | suma: {self.total_tokens}"
-        self.token_label.setText(token_text)
-
-        # Ustawienie kolorów ostrzeżeń
         if self.total_tokens > CRITICAL_TOKEN_LIMIT:
             self.token_label.setStyleSheet("color: red; font-weight: bold")
         elif self.total_tokens > WARNING_TOKEN_LIMIT:
@@ -189,11 +174,6 @@ class PromptAssistant(QMainWindow):
 
     @staticmethod
     def _build_gitignore_spec(root_dir: str):
-        """
-        Zbiera reguły ze wszystkich plików `.gitignore`
-        w drzewie katalogu i zwraca pojedynczy PathSpec.
-        Pomija puste linie i komentarze.
-        """
         patterns = []
         for current_root, _, files in os.walk(root_dir):
             if ".gitignore" in files:
@@ -202,10 +182,8 @@ class PromptAssistant(QMainWindow):
                     with open(gi_path, encoding="utf-8") as f:
                         for raw_line in f:
                             line = raw_line.strip()
-                            # pomijamy puste linie i komentarze
                             if not line or line.startswith('#'):
                                 continue
-                            # dopasowujemy ścieżki względne względem root_dir
                             rel_base = os.path.relpath(current_root, root_dir).replace(os.sep, '/')
                             if rel_base != '.':
                                 line = f"{rel_base}/{line}"
@@ -238,7 +216,6 @@ class PromptAssistant(QMainWindow):
                     self.files_list.addItem(QListWidgetItem(filename))
                 except Exception:
                     pass
-
         self.update_token_count()
 
     # --------------------------- Załączanie katalogu -------------------------
@@ -249,7 +226,7 @@ class PromptAssistant(QMainWindow):
         if not dir_path:
             return
 
-        # --- wielkość katalogu ------------------------------------------------
+        # 1. sprawdzenie wielkości katalogu
         total_size = 0
         for root, dirs, files in os.walk(dir_path):
             if ".git" in dirs:
@@ -268,23 +245,37 @@ class PromptAssistant(QMainWindow):
                 )
                 return
 
+        # 2. specyfikacje ignore
         spec = self._build_gitignore_spec(dir_path) if self.ignore_gitignored else None
+
+        # ---- NOWE: custom spec z pola tekstowego ---------------------------
+        raw_patterns = self.exclude_edit.text()
+        custom_lines = [p.strip() for p in raw_patterns.split(",") if p.strip()]
+        custom_spec = (
+            pathspec.PathSpec.from_lines("gitwildmatch", custom_lines)
+            if custom_lines
+            else None
+        )
 
         collected_files = []
         skipped_binary = 0
         skipped_ignored = 0
+        skipped_custom = 0          # NEW
         root_len = len(dir_path) + 1
 
         for root, dirs, files in os.walk(dir_path):
             if ".git" in dirs:
                 dirs.remove(".git")
-
             for fname in files:
                 full = os.path.join(root, fname)
                 rel = full[root_len:].replace(os.sep, "/")
 
                 if spec and spec.match_file(rel):
                     skipped_ignored += 1
+                    continue
+
+                if custom_spec and custom_spec.match_file(rel):
+                    skipped_custom += 1
                     continue
 
                 if self.is_binary(full):
@@ -304,9 +295,8 @@ class PromptAssistant(QMainWindow):
             )
             return
 
-        # --- generujemy drzewo katalogu --------------------------------------
-        rel_paths = [rel for rel, _ in collected_files]
-        tree_str = self._render_tree_structure(rel_paths)
+        # 3. generujemy drzewo katalogu
+        tree_str = self._render_tree_structure([rel for rel, _ in collected_files])
 
         dir_basename = os.path.basename(dir_path)
         self.attached_dirs.append(
@@ -317,11 +307,14 @@ class PromptAssistant(QMainWindow):
         item.setForeground(Qt.blue)
         self.files_list.addItem(item)
 
+        # 4. podsumowanie pominiętych
         msgs = []
         if skipped_binary:
             msgs.append(f"{skipped_binary} plików binarnych lub nieobsługiwanych")
         if skipped_ignored:
             msgs.append(f"{skipped_ignored} plików na podstawie .gitignore")
+        if skipped_custom:
+            msgs.append(f"{skipped_custom} plików wg własnych reguł")
         if msgs:
             QMessageBox.information(self, "Pominięto pliki", "Pominięto " + ", ".join(msgs) + ".")
 
@@ -329,24 +322,19 @@ class PromptAssistant(QMainWindow):
 
     # --------------------------- Kopiowanie tekstu ---------------------------
     def copy_text(self):
-        """Kopiuje prompt + załączniki w formacie
-        <directories> … </directories> + <file=…> … </file=…>."""
         user_text = self.text_edit.toPlainText()
         xml_parts = []
 
-        # -- katalogi: najpierw drzewo, potem pliki ---------------------------
         for d in self.attached_dirs:
             xml_parts.append("<directories>")
             xml_parts.extend(d["tree"].splitlines())
             xml_parts.append("</directories>")
-
             for rel_path, content in d["files"]:
                 path = f"{d['name']}/{rel_path}".replace(os.sep, "/")
                 xml_parts.append(f"<file={path}>")
                 xml_parts.extend(content.splitlines())
                 xml_parts.append(f"</file={path}>")
 
-        # -- pojedyncze pliki -------------------------------------------------
         for filename, content in self.attached_files:
             path = filename.replace(os.sep, "/")
             xml_parts.append(f"<file={path}>")
@@ -376,6 +364,7 @@ def main():
     window = PromptAssistant()
     window.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()
