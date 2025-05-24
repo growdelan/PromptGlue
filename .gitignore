@@ -5,4 +5,4 @@ promptglue.command
 spec/
 .claude/
 .codex/
-
+__pycache__
