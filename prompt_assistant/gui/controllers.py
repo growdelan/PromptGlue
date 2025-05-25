@@ -183,7 +183,14 @@ def copy_text(window: PromptAssistantWindow) -> None:
         for f in d["files"]:
             if f["excluded"]:
                 continue
-            parts.append(f"<file path='{d['name']}/{f['rel']}'>")
+
+            rel_path = f["rel"]
+            if "/" in rel_path:
+                tag_path = f"/{rel_path}"
+            else:
+                tag_path = rel_path
+
+            parts.append(f"<file path='{tag_path}'>")
             parts.extend(f["content"].splitlines())
             parts.append(f"</file>")
 
