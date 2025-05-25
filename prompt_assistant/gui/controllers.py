@@ -11,6 +11,12 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QListWidgetItem,
     QMessageBox,
+    QDialog,
+    QVBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QHBoxLayout,
 )
 
 from prompt_assistant.config import MAX_DIR_SIZE, WARNING_TOKEN_LIMIT, CRITICAL_TOKEN_LIMIT
@@ -37,7 +43,7 @@ def _update_token_label(window: PromptAssistantWindow) -> None:
             attach_tokens += count_tokens(f["content"])
     # --- pliki z katalogów
     for d in window.attached_dirs:
-        attach_tokens += count_tokens(d["tree"])  # drzewo jest zawsze liczone
+        attach_tokens += count_tokens(d["tree"])
         for f in d["files"]:
             if not f["excluded"]:
                 attach_tokens += count_tokens(f["content"])
@@ -177,17 +183,24 @@ def copy_text(window: PromptAssistantWindow) -> None:
         for f in d["files"]:
             if f["excluded"]:
                 continue
-            parts.append(f"<file={d['name']}/{f['rel']}>")
+
+            rel_path = f["rel"]
+            if "/" in rel_path:
+                tag_path = f"/{rel_path}"
+            else:
+                tag_path = rel_path
+
+            parts.append(f"<file path='{tag_path}'>")
             parts.extend(f["content"].splitlines())
-            parts.append(f"</file={d['name']}/{f['rel']}>")
+            parts.append(f"</file>")
 
     # --- pliki pojedyncze
     for f in window.attached_files:
         if f["excluded"]:
             continue
-        parts.append(f"<file={f['name']}>")
+        parts.append(f"<file path='{f['name']}'>")
         parts.extend(f["content"].splitlines())
-        parts.append(f"</file={f['name']}>")
+        parts.append(f"</file>")
 
     QGuiApplication.clipboard().setText("\n".join(parts))
 
@@ -213,6 +226,72 @@ def preview_file(window: PromptAssistantWindow, item: QListWidgetItem) -> None:
     dlg = FilePreviewDialog(window, item, file_obj, is_dir_file=(kind == "dir_file"))
     dlg.exec_()
 
+def show_token_distribution(window: PromptAssistantWindow) -> None:
+    """Wyświetla modalne okno z rozkładem tokenów promptu i załączonych plików."""
+    # Dynamiczne liczenie
+    prompt_text = window.text_edit.toPlainText() or ""
+    prompt_tokens = count_tokens(prompt_text)
+
+    # Pliki pojedyncze
+    file_counts: List[tuple[str, int]] = [
+        (f['name'], count_tokens(f['content']))
+        for f in window.attached_files
+        if not f['excluded']
+    ]
+    file_counts.sort(key=lambda x: x[1], reverse=True)
+
+    # Katalogi
+    dir_data: List[tuple[str, int, List[tuple[str, int]]]] = []
+    for d in window.attached_dirs:
+        tree_tokens = count_tokens(d['tree'])
+        files = [
+            (f['rel'], count_tokens(f['content']))
+            for f in d['files']
+            if not f['excluded']
+        ]
+        files.sort(key=lambda x: x[1], reverse=True)
+        dir_data.append((d['name'], tree_tokens, files))
+
+    # Budowanie raportu
+    lines: List[str] = []
+    lines.append("Prompt")
+    lines.append(f"  prompt: {prompt_tokens} tokenów")
+    lines.append("")
+    if file_counts:
+        lines.append("Pliki pojedyncze")
+        for name, tokens in file_counts:
+            lines.append(f"  {name}: {tokens} tokenów")
+        lines.append("")
+    if dir_data:
+        lines.append("Katalogi")
+        for dir_name, tree_tokens, files in dir_data:
+            lines.append(f"{dir_name}")
+            lines.append(f"  tree: {tree_tokens} tokenów")
+            for rel, tokens in files:
+                lines.append(f"  {rel}: {tokens} tokenów")
+            lines.append("")
+    report = "\n".join(lines)
+
+    # Tworzenie dialogu
+    dialog = QDialog(window)
+    dialog.setWindowTitle("Rozkład tokenów")
+    dialog.setMinimumWidth(600)
+    layout = QVBoxLayout(dialog)
+
+    # Raport w QPlainTextEdit
+    text = QPlainTextEdit(report)
+    text.setReadOnly(True)
+    layout.addWidget(text)
+
+    # Przyciski
+    btn_layout = QHBoxLayout()
+    btn_layout.addStretch(1)
+    btn_close = QPushButton("Zamknij")
+    btn_close.clicked.connect(dialog.accept)
+    btn_layout.addWidget(btn_close)
+    layout.addLayout(btn_layout)
+
+    dialog.exec_()
 
 # ----------------------------------------------------------------------- setup
 def setup_ui(window: PromptAssistantWindow) -> None:
