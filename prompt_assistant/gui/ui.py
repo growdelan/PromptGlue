@@ -17,13 +17,15 @@ from PyQt5.QtWidgets import (
 
 __all__ = ["PromptAssistantWindow", "build_ui", "bind_signals"]
 
+
 class PromptAssistantWindow(QMainWindow):
     """Main window for the Prompt Assistant GUI."""
+
     def __init__(self) -> None:
         super().__init__()
         # Initialize state
-        self.attached_dirs = []
-        self.attached_files = []
+        self.attached_dirs = []   # [{'name', 'tree', 'files':[...]}]
+        self.attached_files = []  # [{'name', 'content', 'excluded'}]
         self.prompt_tokens = 0
         self.attachments_tokens = 0
         self.total_tokens = 0
@@ -87,6 +89,7 @@ def bind_signals(window: PromptAssistantWindow) -> None:
         attach_directory,
         copy_text,
         clear_all,
+        preview_file,  # <------ nowa funkcja
     )
 
     window.text_edit.textChanged.connect(lambda: _update_token_label(window))
@@ -95,3 +98,4 @@ def bind_signals(window: PromptAssistantWindow) -> None:
     window.attach_dir_button.clicked.connect(lambda: attach_directory(window))
     window.copy_button.clicked.connect(lambda: copy_text(window))
     window.clear_button.clicked.connect(lambda: clear_all(window))
+    window.files_list.itemDoubleClicked.connect(lambda item: preview_file(window, item))
