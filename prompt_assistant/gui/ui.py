@@ -4,7 +4,7 @@ from __future__ import annotations
 from PyQt5.QtWidgets import (
     QMainWindow,
     QWidget,
-    QTextEdit,
+    QPlainTextEdit,
     QListWidget,
     QPushButton,
     QLineEdit,
@@ -43,7 +43,7 @@ def build_ui(window: PromptAssistantWindow) -> None:
 
     layout.addWidget(QLabel("Wpisz treść promptu i załącz pliki lub katalogi:"))
 
-    window.text_edit = QTextEdit()
+    window.text_edit = QPlainTextEdit()
     window.text_edit.setPlaceholderText("Wpisz swój prompt…")
     layout.addWidget(window.text_edit)
 
