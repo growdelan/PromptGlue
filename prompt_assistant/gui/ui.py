@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QLineEdit,
     QCheckBox,
+    QComboBox,
     QStatusBar,
     QLabel,
     QHBoxLayout,
@@ -73,6 +74,18 @@ def build_ui(window: PromptAssistantWindow) -> None:
     window.copy_button = QPushButton("Copy")
     bar.addWidget(window.copy_button)
 
+    window.preview_button = QPushButton("Final preview")
+    bar.addWidget(window.preview_button)
+
+    window.export_button = QPushButton("Export")
+    bar.addWidget(window.export_button)
+
+    window.output_format_combo = QComboBox()
+    window.output_format_combo.addItem("XML-like", "xml")
+    window.output_format_combo.addItem("Markdown blocks", "markdown")
+    window.output_format_combo.addItem("Plain text", "plain")
+    bar.addWidget(window.output_format_combo)
+
     window.clear_button = QPushButton("Clear")
     bar.addWidget(window.clear_button)
 
@@ -95,9 +108,12 @@ def bind_signals(window: PromptAssistantWindow) -> None:
         attach_files,
         attach_directory,
         copy_text,
+        export_text,
         clear_all,
         preview_file,
+        preview_final_output,
         show_token_distribution,
+        set_output_format,
     )
 
     window.text_edit.textChanged.connect(lambda: _update_token_label(window))
@@ -105,6 +121,11 @@ def bind_signals(window: PromptAssistantWindow) -> None:
     window.attach_button.clicked.connect(lambda: attach_files(window))
     window.attach_dir_button.clicked.connect(lambda: attach_directory(window))
     window.copy_button.clicked.connect(lambda: copy_text(window))
+    window.preview_button.clicked.connect(lambda: preview_final_output(window))
+    window.export_button.clicked.connect(lambda: export_text(window))
     window.clear_button.clicked.connect(lambda: clear_all(window))
     window.files_list.itemDoubleClicked.connect(lambda item: preview_file(window, item))
     window.show_token_dist_button.clicked.connect(lambda: show_token_distribution(window))
+    window.output_format_combo.currentIndexChanged.connect(
+        lambda idx: set_output_format(window, idx)
+    )

@@ -84,8 +84,11 @@ Kluczowe komponenty i odpowiedzialności:
 - Uzasadnienie: PRD wymaga płynności pracy na większych katalogach i szybkiej aktualizacji liczników.
 - Konsekwencje: potrzebna strategia invalidacji cache po zmianach stanu sesji.
 
+- Decyzja: Domyślny profil outputu dla copy/export to XML-like.
+- Uzasadnienie: zachowuje kompatybilność wsteczną z dotychczasowym formatem bloków `<file ...>`.
+- Konsekwencje: użytkownik może ręcznie przełączyć się na profile markdown/plain zależnie od workflow.
+
 TODO: [Jaka ma być dokładna polityka sortowania/kolejności wpisów w finalnym outputcie przy mieszanym imporcie plików i katalogów?]
-TODO: [Czy profile formatu outputu mają być globalnym ustawieniem sesji czy wybierane jednorazowo per eksport/kopiowanie?]
 
 ---
 

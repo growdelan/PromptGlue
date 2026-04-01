@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QPlainTextEdit,
+    QLabel,
     QPushButton,
     QHBoxLayout,
 )
@@ -21,6 +22,7 @@ from PyQt5.QtWidgets import (
 from prompt_assistant.config import MAX_DIR_SIZE, WARNING_TOKEN_LIMIT, CRITICAL_TOKEN_LIMIT
 from prompt_assistant.core import (
     EntrySourceType,
+    OutputFormat,
     add_entry,
     build_output,
     clear_session,
@@ -31,6 +33,7 @@ from prompt_assistant.core import (
     remove_entry,
     set_entry_inclusion,
 )
+from prompt_assistant.exporter import export_text_to_file
 from prompt_assistant.utils import render_tree_structure, is_binary, build_gitignore_spec
 from .ui import PromptAssistantWindow
 from .preview_dialog import FilePreviewDialog
@@ -100,6 +103,12 @@ def _create_file_item(
 def _create_file_entry(path: str, content: str, source_type: EntrySourceType):
     size = len(content.encode("utf-8"))
     return create_entry(path=path, source_type=source_type, content=content, size=size)
+
+
+def _build_current_output(window: PromptAssistantWindow):
+    _sync_prompt_text(window)
+    _sync_directory_tree_entries(window)
+    return build_output(window.session)
 
 
 # --------------------------------------------------------------------- actions
@@ -212,9 +221,89 @@ def attach_directory(window: PromptAssistantWindow) -> None:
 
 def copy_text(window: PromptAssistantWindow) -> None:
     """Buduje finalny output i kopiuje do clipboard."""
-    _sync_prompt_text(window)
-    result = build_output(window.session)
+    result = _build_current_output(window)
     QGuiApplication.clipboard().setText(result.rendered_output)
+
+
+def set_output_format(window: PromptAssistantWindow, _index: int) -> None:
+    """Ustawia format renderowania outputu według wyboru użytkownika."""
+    format_value = window.output_format_combo.currentData()
+    if format_value == OutputFormat.MARKDOWN.value:
+        window.session.output_format = OutputFormat.MARKDOWN
+    elif format_value == OutputFormat.PLAIN.value:
+        window.session.output_format = OutputFormat.PLAIN
+    else:
+        window.session.output_format = OutputFormat.XML
+
+
+def export_text(window: PromptAssistantWindow, output_text: str | None = None) -> bool:
+    """Eksportuje wynik do pliku `.md` lub `.txt`."""
+    text_to_export = output_text if output_text is not None else _build_current_output(window).rendered_output
+    if not text_to_export:
+        QMessageBox.information(window, "Brak danych", "Brak treści do eksportu.")
+        return False
+
+    default_ext = ".txt" if window.session.output_format == OutputFormat.PLAIN else ".md"
+    path, _ = QFileDialog.getSaveFileName(
+        window,
+        "Eksportuj wynik",
+        f"prompt_output{default_ext}",
+        "Markdown (*.md);;Text (*.txt)",
+    )
+    if not path:
+        return False
+
+    if not path.endswith(".md") and not path.endswith(".txt"):
+        path = f"{path}{default_ext}"
+
+    try:
+        export_text_to_file(path, text_to_export)
+    except OSError as exc:
+        QMessageBox.critical(window, "Błąd eksportu", f"Nie udało się zapisać pliku: {exc}")
+        return False
+
+    QMessageBox.information(window, "Eksport zakończony", f"Zapisano plik: {path}")
+    return True
+
+
+def preview_final_output(window: PromptAssistantWindow) -> None:
+    """Pokazuje finalny output używany przez copy/export."""
+    result = _build_current_output(window)
+
+    dialog = QDialog(window)
+    dialog.setWindowTitle("Final preview")
+    dialog.setMinimumWidth(860)
+    dialog.setMinimumHeight(620)
+    layout = QVBoxLayout(dialog)
+
+    summary = QLabel(
+        f"Tokeny łącznie: {result.total_tokens} | "
+        f"Uwzględnione wpisy: {result.included_entries} | "
+        f"Pominięte wpisy: {result.excluded_entries}"
+    )
+    layout.addWidget(summary)
+
+    text = QPlainTextEdit(result.rendered_output)
+    text.setReadOnly(True)
+    layout.addWidget(text)
+
+    btn_layout = QHBoxLayout()
+    btn_layout.addStretch(1)
+
+    btn_copy = QPushButton("Kopiuj")
+    btn_copy.clicked.connect(lambda: QGuiApplication.clipboard().setText(text.toPlainText()))
+    btn_layout.addWidget(btn_copy)
+
+    btn_export = QPushButton("Eksportuj")
+    btn_export.clicked.connect(lambda: export_text(window, text.toPlainText()))
+    btn_layout.addWidget(btn_export)
+
+    btn_close = QPushButton("Zamknij")
+    btn_close.clicked.connect(dialog.accept)
+    btn_layout.addWidget(btn_close)
+
+    layout.addLayout(btn_layout)
+    dialog.exec_()
 
 
 def clear_all(window: PromptAssistantWindow) -> None:

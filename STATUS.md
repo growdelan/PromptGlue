@@ -4,6 +4,9 @@
 - Aplikacja GUI uruchamia się przez `uv run main.py`.
 - Załączanie plików i katalogów, wykluczanie/usuwanie oraz kopiowanie finalnego outputu.
 - Budowanie outputu działa przez warstwę `core` i stan `Session` jako źródło prawdy.
+- Final preview pokazuje dokładnie ten sam output, który trafia do kopiowania i eksportu.
+- Eksport wyniku do `.md` i `.txt`.
+- Profile outputu: XML-like, Markdown blocks, Plain text.
 
 ## Co jest skończone
 - Wygenerowano `spec.md` i `ROADMAP.md` na podstawie `prd/000-initial-prd.md`.
@@ -12,17 +15,20 @@
   - wydzielono warstwę `prompt_assistant/core`,
   - GUI zintegrowano z modelem sesji,
   - dodano testy regresyjne remove/exclude/build.
+- Milestone 2 oznaczony jako `done`:
+  - dodano final preview oparte o wspólny pipeline renderowania,
+  - dodano eksport do `.md` i `.txt`,
+  - dodano profile formatu outputu,
+  - rozszerzono testy o profile renderera i eksport.
 
 ## Co jest w trakcie
-- Milestone 2: preview finalnego outputu i eksport.
+- Brak aktywnego milestone'u.
 
 ## Co jest następne
-- Dodać final preview oparte o wspólny pipeline renderowania.
-- Dodać eksport do `.md` i `.txt`.
-- Dodać profile outputu: plain, markdown, xml-like.
+- Odblokować Milestone 3 po doprecyzowaniu UX dla filtrów i masowych akcji.
 
 ## Blokery i ryzyka
-- Brak doprecyzowanego domyślnego profilu outputu dla copy/export (TODO w roadmapie/spec).
+- Milestone 3 i 4 pozostają `blocked` zgodnie z roadmapą.
 
 ## Ostatnie aktualizacje
-- 2026-04-01: zakończono Milestone 1 i uruchomiono testy `unittest` (OK).
+- 2026-04-01: zakończono Milestone 1 i Milestone 2; testy `unittest` przechodzą lokalnie.

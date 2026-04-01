@@ -53,7 +53,7 @@ Uwagi:
 
 ---
 
-## Milestone 2: Preview finalnego outputu i eksport (planned)
+## Milestone 2: Preview finalnego outputu i eksport (done)
 
 Cel:
 - zwiększyć kontrolę użytkownika nad końcowym wynikiem
