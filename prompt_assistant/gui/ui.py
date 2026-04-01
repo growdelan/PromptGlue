@@ -77,10 +77,10 @@ def build_ui(window: PromptAssistantWindow) -> None:
     bar = QHBoxLayout()
     layout.addLayout(bar)
 
-    window.attach_button = QPushButton("Załącz pliki")
+    window.attach_button = QPushButton("Attach Files")
     bar.addWidget(window.attach_button)
 
-    window.attach_dir_button = QPushButton("Załącz katalog")
+    window.attach_dir_button = QPushButton("Attach Directory")
     bar.addWidget(window.attach_dir_button)
 
     window.exclude_edit = QLineEdit()
@@ -125,7 +125,7 @@ def build_ui(window: PromptAssistantWindow) -> None:
     status.addPermanentWidget(window.token_label)
 
     # Nowy przycisk: Pokaż rozkład tokenów
-    window.show_token_dist_button = QPushButton("Pokaż rozkład tokenów")
+    window.show_token_dist_button = QPushButton("Show Token Breakdown")
     status.addPermanentWidget(window.show_token_dist_button)
 
 

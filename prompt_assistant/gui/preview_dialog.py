@@ -62,9 +62,9 @@ class FilePreviewDialog(QDialog):
 
         # ---- Buttons -----------------------------------------------------------
         hbox = QHBoxLayout()
-        self.delete_btn = QPushButton("❌ Usuń plik z listy")
+        self.delete_btn = QPushButton("Remove File")
         self.delete_btn.clicked.connect(self._delete_file)
-        self.close_btn = QPushButton("Zamknij")
+        self.close_btn = QPushButton("Close")
         self.close_btn.clicked.connect(self.accept)
         hbox.addStretch(1)
         hbox.addWidget(self.delete_btn)

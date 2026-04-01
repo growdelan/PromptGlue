@@ -413,15 +413,15 @@ def preview_final_output(window: PromptAssistantWindow) -> None:
     btn_layout = QHBoxLayout()
     btn_layout.addStretch(1)
 
-    btn_copy = QPushButton("Kopiuj")
+    btn_copy = QPushButton("Copy")
     btn_copy.clicked.connect(lambda: QGuiApplication.clipboard().setText(text.toPlainText()))
     btn_layout.addWidget(btn_copy)
 
-    btn_export = QPushButton("Eksportuj")
+    btn_export = QPushButton("Export")
     btn_export.clicked.connect(lambda: export_text(window, text.toPlainText()))
     btn_layout.addWidget(btn_export)
 
-    btn_close = QPushButton("Zamknij")
+    btn_close = QPushButton("Close")
     btn_close.clicked.connect(dialog.accept)
     btn_layout.addWidget(btn_close)
 
@@ -585,7 +585,7 @@ def show_token_distribution(window: PromptAssistantWindow) -> None:
 
     btn_layout = QHBoxLayout()
     btn_layout.addStretch(1)
-    btn_close = QPushButton("Zamknij")
+    btn_close = QPushButton("Close")
     btn_close.clicked.connect(dialog.accept)
     btn_layout.addWidget(btn_close)
     layout.addLayout(btn_layout)
