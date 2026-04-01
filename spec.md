@@ -68,6 +68,8 @@ Kluczowe komponenty i odpowiedzialności:
 - Token service: liczenie i progi ostrzegawcze.
 - Import/reporting: ładowanie katalogu z raportem dodanych/pominiętych plików i powodów.
 - Preview/export bridge: spójny kanał do podglądu, kopiowania i zapisu pliku.
+- Minimalny CLI hook: uruchomienie renderowania bez GUI dla prostych workflow terminalowych.
+- CI pipeline: automatyczna walidacja testów i check kompilacji.
 
 ---
 
@@ -87,6 +89,14 @@ Kluczowe komponenty i odpowiedzialności:
 - Decyzja: Domyślny profil outputu dla copy/export to XML-like.
 - Uzasadnienie: zachowuje kompatybilność wsteczną z dotychczasowym formatem bloków `<file ...>`.
 - Konsekwencje: użytkownik może ręcznie przełączyć się na profile markdown/plain zależnie od workflow.
+
+- Decyzja: Bazowy CI obejmuje `unittest` i check kompilacji (`compileall`).
+- Uzasadnienie: szybka walidacja regresji i podstawowa kontrola jakości bez rozbudowy narzędzi.
+- Konsekwencje: każda zmiana przechodzi przez jednolity minimalny pipeline.
+
+- Decyzja: Dodany minimalny punkt zaczepienia CLI bez zmiany głównego entrypointu GUI.
+- Uzasadnienie: przygotowuje fundament pod dalszy rozwój narzędzia terminalowego.
+- Konsekwencje: logika renderowania pozostaje współdzielona przez GUI i CLI przez warstwę core.
 
 TODO: [Jaka ma być dokładna polityka sortowania/kolejności wpisów w finalnym outputcie przy mieszanym imporcie plików i katalogów?]
 

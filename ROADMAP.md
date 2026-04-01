@@ -99,7 +99,7 @@ Uwagi:
 
 ---
 
-## Milestone 4: Fundament pod rozwój (planned)
+## Milestone 4: Fundament pod rozwój (done)
 
 Cel:
 - przygotować repo i proces pod dalszą ewolucję produktu
@@ -116,4 +116,4 @@ Zakres:
 - przygotowanie rozszerzalności core
 
 Uwagi:
-- odblokowany po stabilizacji funkcjonalnej i domknięciu M3
+- odblokowany po stabilizacji funkcjonalnej i domknięciu M3; zrealizowany

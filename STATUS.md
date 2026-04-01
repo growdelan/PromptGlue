@@ -10,6 +10,8 @@
 - Filtrowanie listy plików po nazwie, rozszerzeniu i statusie.
 - Masowe akcje na zaznaczonych elementach: include/exclude/remove.
 - Raport importu katalogu zawierający przyczyny pominięć i błędy odczytu.
+- Minimalny hook CLI oparty o warstwę `core`.
+- CI (GitHub Actions) uruchamia testy i check kompilacji.
 
 ## Co jest skończone
 - Wygenerowano `spec.md` i `ROADMAP.md` na podstawie `prd/000-initial-prd.md`.
@@ -17,17 +19,16 @@
 - Milestone 1 oznaczony jako `done`.
 - Milestone 2 oznaczony jako `done`.
 - Milestone 3 oznaczony jako `done`.
+- Milestone 4 oznaczony jako `done`.
 
 ## Co jest w trakcie
-- Milestone 4: Fundament pod rozwój.
+- Brak aktywnego milestone'u.
 
 ## Co jest następne
-- Dodać podstawowy CI (testy + build check).
-- Dopić onboarding i strukturę repo w README.
-- Dodać minimalny punkt zaczepienia pod CLI.
+- Roadmapa gotowa na kolejny PRD lub nowy milestone funkcjonalny.
 
 ## Blokery i ryzyka
-- Brak aktywnych blockerów dla M4.
+- Brak aktywnych blockerów.
 
 ## Ostatnie aktualizacje
-- 2026-04-01: zakończono M1, M2 i M3; testy `unittest` przechodzą lokalnie.
+- 2026-04-01: zakończono M1, M2, M3 i M4; testy `unittest` przechodzą lokalnie.
