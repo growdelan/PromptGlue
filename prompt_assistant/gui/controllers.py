@@ -6,7 +6,7 @@ from typing import Dict, List
 
 import pathspec
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QFont, QGuiApplication
 from PyQt5.QtWidgets import (
     QFileDialog,
     QListWidgetItem,
@@ -22,14 +22,19 @@ from PyQt5.QtWidgets import (
 from prompt_assistant.config import MAX_DIR_SIZE, WARNING_TOKEN_LIMIT, CRITICAL_TOKEN_LIMIT
 from prompt_assistant.core import (
     EntrySourceType,
+    FileListRecord,
     OutputFormat,
     add_entry,
+    build_import_report,
     build_output,
     clear_session,
     count_entry_tokens,
     count_session_tokens,
     create_entry,
+    exclude_entries,
     get_entry,
+    include_entries,
+    matches_filters,
     remove_entry,
     set_entry_inclusion,
 )
@@ -43,6 +48,31 @@ def _sync_prompt_text(window: PromptAssistantWindow) -> None:
     window.session.prompt_text = window.text_edit.toPlainText()
 
 
+def _get_file_status(file_obj: dict) -> str:
+    if file_obj.get("read_error"):
+        return "error"
+    if file_obj.get("excluded"):
+        return "excluded"
+    return "active"
+
+
+def _refresh_item_visual(item: QListWidgetItem, file_obj: dict) -> None:
+    status = _get_file_status(file_obj)
+    display_name = file_obj.get("display_name") or file_obj.get("name") or file_obj.get("rel") or "plik"
+
+    if status == "error":
+        error_text = file_obj.get("read_error", "nieznany błąd")
+        item.setText(f"{display_name} [error: {error_text}]")
+    elif status == "excluded":
+        item.setText(f"{display_name} [excluded]")
+    else:
+        item.setText(display_name)
+
+    font: QFont = item.font()
+    font.setStrikeOut(status in ("excluded", "error"))
+    item.setFont(font)
+
+
 def _sync_directory_tree_entries(window: PromptAssistantWindow) -> None:
     """Synchronizuje include tree-entry katalogu na podstawie stanu jego plików."""
     dirs_to_remove: List[dict] = []
@@ -52,11 +82,17 @@ def _sync_directory_tree_entries(window: PromptAssistantWindow) -> None:
             dirs_to_remove.append(directory)
             continue
 
-        has_active_files = any(not f["excluded"] for f in directory["files"])
+        has_active_files = any(_get_file_status(f) == "active" for f in directory["files"])
         set_entry_inclusion(window.session, directory["tree_entry_id"], has_active_files)
 
     for directory in dirs_to_remove:
         window.attached_dirs.remove(directory)
+
+
+def _build_current_output(window: PromptAssistantWindow):
+    _sync_prompt_text(window)
+    _sync_directory_tree_entries(window)
+    return build_output(window.session)
 
 
 # --------------------------------------------------------------------------- UI
@@ -90,51 +126,113 @@ def _toggle_gitignore(window: PromptAssistantWindow, state: int) -> None:
 
 def _create_file_item(
     window: PromptAssistantWindow,
-    display_name: str,
     file_obj: dict,
     is_dir_file: bool = False,
 ) -> None:
     """Dodaje wpis do QListWidget i przypina obiekt pliku w UserRole."""
-    item = QListWidgetItem(display_name)
+    item = QListWidgetItem(file_obj["display_name"])
     item.setData(Qt.UserRole, ("dir_file" if is_dir_file else "file", file_obj))
+    _refresh_item_visual(item, file_obj)
     window.files_list.addItem(item)
 
 
-def _create_file_entry(path: str, content: str, source_type: EntrySourceType):
+def _create_file_entry(path: str, content: str, source_type: EntrySourceType, *, read_error: str | None = None):
     size = len(content.encode("utf-8"))
-    return create_entry(path=path, source_type=source_type, content=content, size=size)
+    return create_entry(
+        path=path,
+        source_type=source_type,
+        content=content,
+        size=size,
+        include_in_output=(read_error is None),
+        read_error=read_error,
+    )
 
 
-def _build_current_output(window: PromptAssistantWindow):
-    _sync_prompt_text(window)
-    _sync_directory_tree_entries(window)
-    return build_output(window.session)
+def _iter_file_items(window: PromptAssistantWindow):
+    for idx in range(window.files_list.count()):
+        item = window.files_list.item(idx)
+        role = item.data(Qt.UserRole)
+        if not role:
+            continue
+        kind, file_obj = role
+        if kind in ("file", "dir_file"):
+            yield item, file_obj
+
+
+# --------------------------------------------------------------------- filters
+
+def apply_list_filters(window: PromptAssistantWindow) -> None:
+    """Filtruje listę plików po nazwie, rozszerzeniu i statusie."""
+    name_query = window.name_filter_edit.text()
+    extension_query = window.ext_filter_edit.text()
+    status_filter = window.status_filter_combo.currentData() or "all"
+
+    for item, file_obj in _iter_file_items(window):
+        extension = file_obj.get("extension", "")
+        record = FileListRecord(
+            display_name=file_obj.get("display_name", ""),
+            extension=extension,
+            status=_get_file_status(file_obj),
+        )
+        visible = matches_filters(
+            record,
+            name_query=name_query,
+            extension_query=extension_query,
+            status_filter=status_filter,
+        )
+        item.setHidden(not visible)
 
 
 # --------------------------------------------------------------------- actions
 
 def attach_files(window: PromptAssistantWindow) -> None:
     paths, _ = QFileDialog.getOpenFileNames(window, "Wybierz pliki...", "", "*.*")
+    read_errors: List[str] = []
+
     for path in paths:
         if not os.path.isfile(path):
             continue
+
+        name = os.path.basename(path)
+        extension = os.path.splitext(name)[1].lower()
+
         try:
             with open(path, encoding="utf-8") as file_handle:
                 content = file_handle.read()
-            name = os.path.basename(path)
             entry = _create_file_entry(name, content, EntrySourceType.FILE)
             add_entry(window.session, entry)
             file_obj = {
                 "name": name,
+                "display_name": name,
                 "content": content,
                 "excluded": False,
                 "entry_id": entry.entry_id,
+                "extension": extension,
+                "read_error": None,
             }
-            window.attached_files.append(file_obj)
-            _create_file_item(window, name, file_obj)
-        except Exception:
-            pass
+        except Exception as exc:
+            error_text = str(exc)
+            entry = _create_file_entry(name, "", EntrySourceType.FILE, read_error=error_text)
+            add_entry(window.session, entry)
+            file_obj = {
+                "name": name,
+                "display_name": name,
+                "content": "",
+                "excluded": True,
+                "entry_id": entry.entry_id,
+                "extension": extension,
+                "read_error": error_text,
+            }
+            read_errors.append(f"{name}: {error_text}")
+
+        window.attached_files.append(file_obj)
+        _create_file_item(window, file_obj)
+
+    if read_errors:
+        QMessageBox.warning(window, "Błędy odczytu plików", "\n".join(read_errors))
+
     _update_token_label(window)
+    apply_list_filters(window)
 
 
 def attach_directory(window: PromptAssistantWindow) -> None:
@@ -161,6 +259,7 @@ def attach_directory(window: PromptAssistantWindow) -> None:
 
     collected: List[Dict] = []
     skipped = {"binary": 0, "git": 0, "custom": 0}
+    read_errors: List[str] = []
     base = len(dir_path) + 1
 
     for root, dirs, files in os.walk(dir_path):
@@ -169,6 +268,7 @@ def attach_directory(window: PromptAssistantWindow) -> None:
         for filename in files:
             full = os.path.join(root, filename)
             rel = full[base:].replace(os.sep, "/")
+
             if git_spec and git_spec.match_file(rel):
                 skipped["git"] += 1
                 continue
@@ -178,15 +278,32 @@ def attach_directory(window: PromptAssistantWindow) -> None:
             if is_binary(full):
                 skipped["binary"] += 1
                 continue
+
             try:
                 with open(full, encoding="utf-8") as file_handle:
                     content = file_handle.read()
-                    collected.append({"rel": rel, "content": content, "excluded": False})
-            except Exception:
-                skipped["binary"] += 1
+                collected.append(
+                    {
+                        "rel": rel,
+                        "display_name": f"{os.path.basename(dir_path)}/{rel}",
+                        "content": content,
+                        "excluded": False,
+                        "extension": os.path.splitext(rel)[1].lower(),
+                        "read_error": None,
+                    }
+                )
+            except Exception as exc:
+                read_errors.append(f"{rel}: {exc}")
 
     if not collected:
-        QMessageBox.information(window, "Brak plików", "Nie znaleziono plików tekstowych.")
+        report = build_import_report(
+            added_count=0,
+            skipped_git=skipped["git"],
+            skipped_custom=skipped["custom"],
+            skipped_binary=skipped["binary"],
+            read_errors=read_errors,
+        )
+        QMessageBox.information(window, "Brak plików", report)
         return
 
     tree = render_tree_structure([file_item["rel"] for file_item in collected])
@@ -210,13 +327,19 @@ def attach_directory(window: PromptAssistantWindow) -> None:
     )
 
     for file_item in collected:
-        _create_file_item(window, f"{name}/{file_item['rel']}", file_item, is_dir_file=True)
+        _create_file_item(window, file_item, is_dir_file=True)
 
-    msgs = [f"{value} {key}" for key, value in skipped.items() if value]
-    if msgs:
-        QMessageBox.information(window, "Pominięto", ", ".join(msgs))
+    report = build_import_report(
+        added_count=len(collected),
+        skipped_git=skipped["git"],
+        skipped_custom=skipped["custom"],
+        skipped_binary=skipped["binary"],
+        read_errors=read_errors,
+    )
+    QMessageBox.information(window, "Raport importu katalogu", report)
 
     _update_token_label(window)
+    apply_list_filters(window)
 
 
 def copy_text(window: PromptAssistantWindow) -> None:
@@ -306,6 +429,61 @@ def preview_final_output(window: PromptAssistantWindow) -> None:
     dialog.exec_()
 
 
+def _selected_file_items(window: PromptAssistantWindow) -> list[tuple[QListWidgetItem, dict]]:
+    selected: list[tuple[QListWidgetItem, dict]] = []
+    for item in window.files_list.selectedItems():
+        role = item.data(Qt.UserRole)
+        if not role:
+            continue
+        kind, file_obj = role
+        if kind in ("file", "dir_file"):
+            selected.append((item, file_obj))
+    return selected
+
+
+def bulk_include_selected(window: PromptAssistantWindow) -> None:
+    selected = _selected_file_items(window)
+    entry_ids = [file_obj["entry_id"] for _item, file_obj in selected if not file_obj.get("read_error")]
+    include_entries(window.session, entry_ids)
+
+    for item, file_obj in selected:
+        if file_obj.get("read_error"):
+            continue
+        file_obj["excluded"] = False
+        _refresh_item_visual(item, file_obj)
+
+    _sync_directory_tree_entries(window)
+    _update_token_label(window)
+    apply_list_filters(window)
+
+
+def bulk_exclude_selected(window: PromptAssistantWindow) -> None:
+    selected = _selected_file_items(window)
+    entry_ids = [file_obj["entry_id"] for _item, file_obj in selected if not file_obj.get("read_error")]
+    exclude_entries(window.session, entry_ids)
+
+    for item, file_obj in selected:
+        if file_obj.get("read_error"):
+            continue
+        file_obj["excluded"] = True
+        _refresh_item_visual(item, file_obj)
+
+    _sync_directory_tree_entries(window)
+    _update_token_label(window)
+    apply_list_filters(window)
+
+
+def bulk_remove_selected(window: PromptAssistantWindow) -> None:
+    selected = _selected_file_items(window)
+    for item, file_obj in selected:
+        row = window.files_list.row(item)
+        window.files_list.takeItem(row)
+        remove_file_from_session(window, file_obj)
+
+    _update_token_label(window)
+    apply_list_filters(window)
+
+
 def clear_all(window: PromptAssistantWindow) -> None:
     window.text_edit.clear()
     window.files_list.clear()
@@ -343,7 +521,6 @@ def remove_file_from_session(window: PromptAssistantWindow, file_obj: dict) -> N
                 break
 
     _sync_directory_tree_entries(window)
-    _update_token_label(window)
 
 
 def show_token_distribution(window: PromptAssistantWindow) -> None:
@@ -354,7 +531,7 @@ def show_token_distribution(window: PromptAssistantWindow) -> None:
 
     file_counts: List[tuple[str, int]] = []
     for file_obj in window.attached_files:
-        if file_obj["excluded"]:
+        if _get_file_status(file_obj) != "active":
             continue
         entry = get_entry(window.session, file_obj["entry_id"])
         if entry is None:
@@ -369,7 +546,7 @@ def show_token_distribution(window: PromptAssistantWindow) -> None:
 
         files: List[tuple[str, int]] = []
         for file_obj in directory["files"]:
-            if file_obj["excluded"]:
+            if _get_file_status(file_obj) != "active":
                 continue
             entry = get_entry(window.session, file_obj["entry_id"])
             if entry is None:

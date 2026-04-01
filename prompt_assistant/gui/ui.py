@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QWidget,
     QPlainTextEdit,
     QListWidget,
+    QAbstractItemView,
     QPushButton,
     QLineEdit,
     QCheckBox,
@@ -52,7 +53,26 @@ def build_ui(window: PromptAssistantWindow) -> None:
     layout.addWidget(window.text_edit)
 
     window.files_list = QListWidget()
+    window.files_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
     layout.addWidget(window.files_list)
+
+    filter_bar = QHBoxLayout()
+    layout.addLayout(filter_bar)
+
+    window.name_filter_edit = QLineEdit()
+    window.name_filter_edit.setPlaceholderText("Filtr nazwy")
+    filter_bar.addWidget(window.name_filter_edit)
+
+    window.ext_filter_edit = QLineEdit()
+    window.ext_filter_edit.setPlaceholderText("Rozszerzenie (np. .py)")
+    filter_bar.addWidget(window.ext_filter_edit)
+
+    window.status_filter_combo = QComboBox()
+    window.status_filter_combo.addItem("Wszystkie", "all")
+    window.status_filter_combo.addItem("Aktywne", "active")
+    window.status_filter_combo.addItem("Wykluczone", "excluded")
+    window.status_filter_combo.addItem("Błędy", "error")
+    filter_bar.addWidget(window.status_filter_combo)
 
     bar = QHBoxLayout()
     layout.addLayout(bar)
@@ -86,6 +106,15 @@ def build_ui(window: PromptAssistantWindow) -> None:
     window.output_format_combo.addItem("Plain text", "plain")
     bar.addWidget(window.output_format_combo)
 
+    window.bulk_include_button = QPushButton("Include selected")
+    bar.addWidget(window.bulk_include_button)
+
+    window.bulk_exclude_button = QPushButton("Exclude selected")
+    bar.addWidget(window.bulk_exclude_button)
+
+    window.bulk_remove_button = QPushButton("Remove selected")
+    bar.addWidget(window.bulk_remove_button)
+
     window.clear_button = QPushButton("Clear")
     bar.addWidget(window.clear_button)
 
@@ -108,12 +137,16 @@ def bind_signals(window: PromptAssistantWindow) -> None:
         attach_files,
         attach_directory,
         copy_text,
+        bulk_exclude_selected,
+        bulk_include_selected,
+        bulk_remove_selected,
         export_text,
         clear_all,
         preview_file,
         preview_final_output,
         show_token_distribution,
         set_output_format,
+        apply_list_filters,
     )
 
     window.text_edit.textChanged.connect(lambda: _update_token_label(window))
@@ -123,9 +156,15 @@ def bind_signals(window: PromptAssistantWindow) -> None:
     window.copy_button.clicked.connect(lambda: copy_text(window))
     window.preview_button.clicked.connect(lambda: preview_final_output(window))
     window.export_button.clicked.connect(lambda: export_text(window))
+    window.bulk_include_button.clicked.connect(lambda: bulk_include_selected(window))
+    window.bulk_exclude_button.clicked.connect(lambda: bulk_exclude_selected(window))
+    window.bulk_remove_button.clicked.connect(lambda: bulk_remove_selected(window))
     window.clear_button.clicked.connect(lambda: clear_all(window))
     window.files_list.itemDoubleClicked.connect(lambda item: preview_file(window, item))
     window.show_token_dist_button.clicked.connect(lambda: show_token_distribution(window))
     window.output_format_combo.currentIndexChanged.connect(
         lambda idx: set_output_format(window, idx)
     )
+    window.name_filter_edit.textChanged.connect(lambda: apply_list_filters(window))
+    window.ext_filter_edit.textChanged.connect(lambda: apply_list_filters(window))
+    window.status_filter_combo.currentIndexChanged.connect(lambda _idx: apply_list_filters(window))

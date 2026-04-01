@@ -76,7 +76,7 @@ Uwagi:
 
 ---
 
-## Milestone 3: Ergonomia i komunikacja błędów (blocked)
+## Milestone 3: Ergonomia i komunikacja błędów (done)
 
 Cel:
 - usprawnić pracę na większych zestawach plików
@@ -95,11 +95,11 @@ Zakres:
 - dopięcie testów scenariuszy UX
 
 Uwagi:
-- blocked do czasu domknięcia M1 i M2 oraz doprecyzowania UX dla masowych akcji
+- zrealizowano po domknięciu M1 i M2
 
 ---
 
-## Milestone 4: Fundament pod rozwój (blocked)
+## Milestone 4: Fundament pod rozwój (planned)
 
 Cel:
 - przygotować repo i proces pod dalszą ewolucję produktu
@@ -116,4 +116,4 @@ Zakres:
 - przygotowanie rozszerzalności core
 
 Uwagi:
-- blocked do czasu stabilizacji funkcjonalnej po M2
+- odblokowany po stabilizacji funkcjonalnej i domknięciu M3

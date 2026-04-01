@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QDialog,
     QLabel,
@@ -38,20 +37,26 @@ class FilePreviewDialog(QDialog):
         # ---- UI ----------------------------------------------------------------
         vbox = QVBoxLayout(self)
 
+        token_info = count_tokens(file_obj["content"]) if file_obj.get("content") else 0
         header = QLabel(
             f"{self.window.windowTitle().split('—')[0]} — "
             f"{file_obj.get('name', file_obj.get('rel'))} "
-            f"— {count_tokens(file_obj['content'])} tokenów"
+            f"— {token_info} tokenów"
         )
         header.setWordWrap(True)
         vbox.addWidget(header)
 
-        self.viewer = QPlainTextEdit(file_obj["content"])
+        viewer_content = file_obj.get("content", "")
+        if file_obj.get("read_error"):
+            viewer_content = f"Błąd odczytu:\n{file_obj['read_error']}"
+        self.viewer = QPlainTextEdit(viewer_content)
         self.viewer.setReadOnly(True)
         vbox.addWidget(self.viewer, 1)
 
         self.exclude_cb = QCheckBox("✅ Wyklucz ten plik z promptu")
         self.exclude_cb.setChecked(file_obj["excluded"])
+        if file_obj.get("read_error"):
+            self.exclude_cb.setEnabled(False)
         self.exclude_cb.stateChanged.connect(self._toggle_exclude)
         vbox.addWidget(self.exclude_cb)
 
@@ -69,9 +74,16 @@ class FilePreviewDialog(QDialog):
     # --------------------------------------------------------------------- slots
     def _toggle_exclude(self, state: int) -> None:
         """Aktualizuje status excluded i formatowanie w liście."""
+        if self.file_obj.get("read_error"):
+            return
         # Late import to avoid circular import
         from prompt_assistant.core import get_entry, set_entry_inclusion
-        from prompt_assistant.gui.controllers import _sync_directory_tree_entries, _update_token_label
+        from prompt_assistant.gui.controllers import (
+            _refresh_item_visual,
+            _sync_directory_tree_entries,
+            _update_token_label,
+            apply_list_filters,
+        )
 
         self.file_obj["excluded"] = state == Qt.Checked
         include = not self.file_obj["excluded"]
@@ -84,10 +96,9 @@ class FilePreviewDialog(QDialog):
         if entry is not None:
             entry.token_count_cache = count_tokens(entry.content)
 
-        font: QFont = self.list_item.font()
-        font.setStrikeOut(self.file_obj["excluded"])
-        self.list_item.setFont(font)
+        _refresh_item_visual(self.list_item, self.file_obj)
         _update_token_label(self.window)
+        apply_list_filters(self.window)
 
     def _delete_file(self) -> None:
         """Usuwa plik ze wszystkich struktur + z UI."""
