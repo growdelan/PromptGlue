@@ -70,9 +70,20 @@ class FilePreviewDialog(QDialog):
     def _toggle_exclude(self, state: int) -> None:
         """Aktualizuje status excluded i formatowanie w liście."""
         # Late import to avoid circular import
-        from prompt_assistant.gui.controllers import _update_token_label
+        from prompt_assistant.core import get_entry, set_entry_inclusion
+        from prompt_assistant.gui.controllers import _sync_directory_tree_entries, _update_token_label
 
         self.file_obj["excluded"] = state == Qt.Checked
+        include = not self.file_obj["excluded"]
+        set_entry_inclusion(self.window.session, self.file_obj["entry_id"], include)
+
+        # Przy plikach katalogowych tree-entry ma zależność od aktywności dzieci.
+        _sync_directory_tree_entries(self.window)
+
+        entry = get_entry(self.window.session, self.file_obj["entry_id"])
+        if entry is not None:
+            entry.token_count_cache = count_tokens(entry.content)
+
         font: QFont = self.list_item.font()
         font.setStrikeOut(self.file_obj["excluded"])
         self.list_item.setFont(font)
@@ -81,20 +92,10 @@ class FilePreviewDialog(QDialog):
     def _delete_file(self) -> None:
         """Usuwa plik ze wszystkich struktur + z UI."""
         # Late import to avoid circular import
-        from prompt_assistant.gui.controllers import _update_token_label
+        from prompt_assistant.gui.controllers import remove_file_from_session
 
         lw = self.window.files_list
         row = lw.row(self.list_item)
         lw.takeItem(row)
-
-        # Usuń z modelu
-        if self.file_obj in self.window.attached_files:
-            self.window.attached_files.remove(self.file_obj)
-        else:  # szukaj w katalogach
-            for d in self.window.attached_dirs:
-                if self.file_obj in d["files"]:
-                    d["files"].remove(self.file_obj)
-                    break
-
-        _update_token_label(self.window)
+        remove_file_from_session(self.window, self.file_obj)
         self.accept()

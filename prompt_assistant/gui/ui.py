@@ -15,6 +15,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from prompt_assistant.core import Session
+
 __all__ = ["PromptAssistantWindow", "build_ui", "bind_signals"]
 
 
@@ -30,6 +32,7 @@ class PromptAssistantWindow(QMainWindow):
         self.attachments_tokens = 0
         self.total_tokens = 0
         self.ignore_gitignored = True
+        self.session = Session()
 
         build_ui(self)
 

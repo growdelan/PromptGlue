@@ -16,5 +16,10 @@ W katalogu z repozytorium:
 uv run main.py
 ```
 
+## Testy
+
+```bash
+uv run python -m unittest discover -s tests -p "test_*.py"
+```
 
 
