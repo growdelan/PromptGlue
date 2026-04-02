@@ -6,14 +6,18 @@ from PyQt5.QtWidgets import (
     QWidget,
     QPlainTextEdit,
     QListWidget,
+    QAbstractItemView,
     QPushButton,
     QLineEdit,
     QCheckBox,
+    QComboBox,
     QStatusBar,
     QLabel,
     QHBoxLayout,
     QVBoxLayout,
 )
+
+from prompt_assistant.core import Session
 
 __all__ = ["PromptAssistantWindow", "build_ui", "bind_signals"]
 
@@ -30,6 +34,7 @@ class PromptAssistantWindow(QMainWindow):
         self.attachments_tokens = 0
         self.total_tokens = 0
         self.ignore_gitignored = True
+        self.session = Session()
 
         build_ui(self)
 
@@ -48,30 +53,76 @@ def build_ui(window: PromptAssistantWindow) -> None:
     layout.addWidget(window.text_edit)
 
     window.files_list = QListWidget()
+    window.files_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
     layout.addWidget(window.files_list)
 
-    bar = QHBoxLayout()
-    layout.addLayout(bar)
+    filter_bar = QHBoxLayout()
+    layout.addLayout(filter_bar)
 
-    window.attach_button = QPushButton("Załącz pliki")
-    bar.addWidget(window.attach_button)
+    window.name_filter_edit = QLineEdit()
+    window.name_filter_edit.setPlaceholderText("Filtr nazwy")
+    filter_bar.addWidget(window.name_filter_edit)
 
-    window.attach_dir_button = QPushButton("Załącz katalog")
-    bar.addWidget(window.attach_dir_button)
+    window.ext_filter_edit = QLineEdit()
+    window.ext_filter_edit.setPlaceholderText("Rozszerzenie (np. .py)")
+    filter_bar.addWidget(window.ext_filter_edit)
+
+    window.status_filter_combo = QComboBox()
+    window.status_filter_combo.addItem("Wszystkie", "all")
+    window.status_filter_combo.addItem("Aktywne", "active")
+    window.status_filter_combo.addItem("Wykluczone", "excluded")
+    window.status_filter_combo.addItem("Błędy", "error")
+    filter_bar.addWidget(window.status_filter_combo)
+
+    input_bar = QHBoxLayout()
+    layout.addLayout(input_bar)
+
+    window.attach_button = QPushButton("Attach Files")
+    input_bar.addWidget(window.attach_button)
+
+    window.attach_dir_button = QPushButton("Attach Directory")
+    input_bar.addWidget(window.attach_dir_button)
 
     window.exclude_edit = QLineEdit()
     window.exclude_edit.setPlaceholderText("Wykluczenia: *.md, README.txt…")
-    bar.addWidget(window.exclude_edit, stretch=1)
+    input_bar.addWidget(window.exclude_edit, stretch=1)
 
     window.gitignore_checkbox = QCheckBox("Filtr .gitignore")
     window.gitignore_checkbox.setChecked(True)
-    bar.addWidget(window.gitignore_checkbox)
+    input_bar.addWidget(window.gitignore_checkbox)
+
+    output_bar = QHBoxLayout()
+    layout.addLayout(output_bar)
 
     window.copy_button = QPushButton("Copy")
-    bar.addWidget(window.copy_button)
+    output_bar.addWidget(window.copy_button)
+
+    window.preview_button = QPushButton("Final preview")
+    output_bar.addWidget(window.preview_button)
+
+    window.export_button = QPushButton("Export")
+    output_bar.addWidget(window.export_button)
+
+    window.output_format_combo = QComboBox()
+    window.output_format_combo.addItem("XML-like", "xml")
+    window.output_format_combo.addItem("Markdown blocks", "markdown")
+    window.output_format_combo.addItem("Plain text", "plain")
+    output_bar.addWidget(window.output_format_combo)
+
+    output_bar.addStretch(1)
 
     window.clear_button = QPushButton("Clear")
-    bar.addWidget(window.clear_button)
+    output_bar.addWidget(window.clear_button)
+
+    bulk_bar = QHBoxLayout()
+    layout.addLayout(bulk_bar)
+
+    window.bulk_include_button = QPushButton("Include selected")
+    bulk_bar.addWidget(window.bulk_include_button)
+    window.bulk_exclude_button = QPushButton("Exclude selected")
+    bulk_bar.addWidget(window.bulk_exclude_button)
+    window.bulk_remove_button = QPushButton("Remove selected")
+    bulk_bar.addWidget(window.bulk_remove_button)
 
     # Status bar & token label
     status = QStatusBar()
@@ -80,7 +131,7 @@ def build_ui(window: PromptAssistantWindow) -> None:
     status.addPermanentWidget(window.token_label)
 
     # Nowy przycisk: Pokaż rozkład tokenów
-    window.show_token_dist_button = QPushButton("Pokaż rozkład tokenów")
+    window.show_token_dist_button = QPushButton("Show Token Breakdown")
     status.addPermanentWidget(window.show_token_dist_button)
 
 
@@ -92,9 +143,16 @@ def bind_signals(window: PromptAssistantWindow) -> None:
         attach_files,
         attach_directory,
         copy_text,
+        bulk_exclude_selected,
+        bulk_include_selected,
+        bulk_remove_selected,
+        export_text,
         clear_all,
         preview_file,
+        preview_final_output,
         show_token_distribution,
+        set_output_format,
+        apply_list_filters,
     )
 
     window.text_edit.textChanged.connect(lambda: _update_token_label(window))
@@ -102,6 +160,17 @@ def bind_signals(window: PromptAssistantWindow) -> None:
     window.attach_button.clicked.connect(lambda: attach_files(window))
     window.attach_dir_button.clicked.connect(lambda: attach_directory(window))
     window.copy_button.clicked.connect(lambda: copy_text(window))
+    window.preview_button.clicked.connect(lambda: preview_final_output(window))
+    window.export_button.clicked.connect(lambda: export_text(window))
+    window.bulk_include_button.clicked.connect(lambda: bulk_include_selected(window))
+    window.bulk_exclude_button.clicked.connect(lambda: bulk_exclude_selected(window))
+    window.bulk_remove_button.clicked.connect(lambda: bulk_remove_selected(window))
     window.clear_button.clicked.connect(lambda: clear_all(window))
     window.files_list.itemDoubleClicked.connect(lambda item: preview_file(window, item))
     window.show_token_dist_button.clicked.connect(lambda: show_token_distribution(window))
+    window.output_format_combo.currentIndexChanged.connect(
+        lambda idx: set_output_format(window, idx)
+    )
+    window.name_filter_edit.textChanged.connect(lambda: apply_list_filters(window))
+    window.ext_filter_edit.textChanged.connect(lambda: apply_list_filters(window))
+    window.status_filter_combo.currentIndexChanged.connect(lambda _idx: apply_list_filters(window))
