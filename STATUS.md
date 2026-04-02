@@ -13,6 +13,7 @@
 - Minimalny hook CLI oparty o warstwę `core`.
 - CI (GitHub Actions) uruchamia testy i check kompilacji.
 - Dolny obszar akcji GUI jest rozdzielony na osobne wiersze (input/output/bulk), co poprawia czytelność przy długich toolbarach.
+- Wykluczanie/usuwanie plików z importu katalogu aktualizuje również sekcję `<directories>` (drzewo zawiera tylko aktywne pliki).
 
 ## Co jest skończone
 - Wygenerowano `spec.md` i `ROADMAP.md` na podstawie `prd/000-initial-prd.md`.
@@ -34,3 +35,4 @@
 ## Ostatnie aktualizacje
 - 2026-04-01: zakończono M1, M2, M3 i M4; testy `unittest` przechodzą lokalnie.
 - 2026-04-02: poprawiono ergonomię layoutu GUI przez rozdzielenie przycisków na kilka pasków akcji.
+- 2026-04-02: naprawiono niespójność `<directories>` przy exclude/remove oraz dodano test regresyjny.

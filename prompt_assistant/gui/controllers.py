@@ -82,7 +82,15 @@ def _sync_directory_tree_entries(window: PromptAssistantWindow) -> None:
             dirs_to_remove.append(directory)
             continue
 
-        has_active_files = any(_get_file_status(f) == "active" for f in directory["files"])
+        active_files_rel = [f["rel"] for f in directory["files"] if _get_file_status(f) == "active"]
+        has_active_files = bool(active_files_rel)
+
+        tree_entry = get_entry(window.session, directory["tree_entry_id"])
+        if tree_entry is not None:
+            # `<directories>` ma odzwierciedlać wyłącznie aktywne pliki.
+            tree_entry.content = render_tree_structure(active_files_rel) if active_files_rel else "."
+            tree_entry.token_count_cache = None
+
         set_entry_inclusion(window.session, directory["tree_entry_id"], has_active_files)
 
     for directory in dirs_to_remove:
