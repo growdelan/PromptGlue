@@ -74,49 +74,55 @@ def build_ui(window: PromptAssistantWindow) -> None:
     window.status_filter_combo.addItem("Błędy", "error")
     filter_bar.addWidget(window.status_filter_combo)
 
-    bar = QHBoxLayout()
-    layout.addLayout(bar)
+    input_bar = QHBoxLayout()
+    layout.addLayout(input_bar)
 
     window.attach_button = QPushButton("Attach Files")
-    bar.addWidget(window.attach_button)
+    input_bar.addWidget(window.attach_button)
 
     window.attach_dir_button = QPushButton("Attach Directory")
-    bar.addWidget(window.attach_dir_button)
+    input_bar.addWidget(window.attach_dir_button)
 
     window.exclude_edit = QLineEdit()
     window.exclude_edit.setPlaceholderText("Wykluczenia: *.md, README.txt…")
-    bar.addWidget(window.exclude_edit, stretch=1)
+    input_bar.addWidget(window.exclude_edit, stretch=1)
 
     window.gitignore_checkbox = QCheckBox("Filtr .gitignore")
     window.gitignore_checkbox.setChecked(True)
-    bar.addWidget(window.gitignore_checkbox)
+    input_bar.addWidget(window.gitignore_checkbox)
+
+    output_bar = QHBoxLayout()
+    layout.addLayout(output_bar)
 
     window.copy_button = QPushButton("Copy")
-    bar.addWidget(window.copy_button)
+    output_bar.addWidget(window.copy_button)
 
     window.preview_button = QPushButton("Final preview")
-    bar.addWidget(window.preview_button)
+    output_bar.addWidget(window.preview_button)
 
     window.export_button = QPushButton("Export")
-    bar.addWidget(window.export_button)
+    output_bar.addWidget(window.export_button)
 
     window.output_format_combo = QComboBox()
     window.output_format_combo.addItem("XML-like", "xml")
     window.output_format_combo.addItem("Markdown blocks", "markdown")
     window.output_format_combo.addItem("Plain text", "plain")
-    bar.addWidget(window.output_format_combo)
+    output_bar.addWidget(window.output_format_combo)
 
-    window.bulk_include_button = QPushButton("Include selected")
-    bar.addWidget(window.bulk_include_button)
-
-    window.bulk_exclude_button = QPushButton("Exclude selected")
-    bar.addWidget(window.bulk_exclude_button)
-
-    window.bulk_remove_button = QPushButton("Remove selected")
-    bar.addWidget(window.bulk_remove_button)
+    output_bar.addStretch(1)
 
     window.clear_button = QPushButton("Clear")
-    bar.addWidget(window.clear_button)
+    output_bar.addWidget(window.clear_button)
+
+    bulk_bar = QHBoxLayout()
+    layout.addLayout(bulk_bar)
+
+    window.bulk_include_button = QPushButton("Include selected")
+    bulk_bar.addWidget(window.bulk_include_button)
+    window.bulk_exclude_button = QPushButton("Exclude selected")
+    bulk_bar.addWidget(window.bulk_exclude_button)
+    window.bulk_remove_button = QPushButton("Remove selected")
+    bulk_bar.addWidget(window.bulk_remove_button)
 
     # Status bar & token label
     status = QStatusBar()
